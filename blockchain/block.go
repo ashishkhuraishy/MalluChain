@@ -1,9 +1,6 @@
 package blockchain
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"strconv"
 	"time"
 )
 
@@ -15,21 +12,17 @@ type Block struct {
 	PrevHash  []byte
 	Data      []byte
 	Hash      []byte
-}
-
-// SetHash is used to create a hash for the current block
-func (b *Block) SetHash() {
-	timeStamp := []byte(strconv.FormatInt(b.TimeStamp, 10))
-	headers := bytes.Join([][]byte{b.PrevHash, b.Data, timeStamp}, []byte{})
-	hash := sha256.Sum256(headers)
-
-	b.Hash = hash[:]
+	Nonce     int
 }
 
 // NewBlock creates a new block with the given data and previous hash
 func NewBlock(data string, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), prevBlockHash, []byte(data), []byte{}}
-	block.SetHash()
+	block := &Block{time.Now().Unix(), prevBlockHash, []byte(data), []byte{}, 0}
+	pow := NewProofOfWork(block)
+	nonce, hash := pow.Run()
+
+	block.Nonce = nonce
+	block.Hash = hash
 
 	return block
 }
