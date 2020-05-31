@@ -11,15 +11,15 @@ const dbBucket = "malluchain"
 
 // BlockChain data structure
 type BlockChain struct {
-	tip []byte
-	db  *bolt.DB
+	Tip []byte
+	Db  *bolt.DB
 }
 
 // AddBlock functions helps us to add a new data into the blockChain
 func (bc *BlockChain) AddBlock(data string) {
 	var lastHash []byte
 
-	err := bc.db.View(func(tx *bolt.Tx) error {
+	err := bc.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(dbBucket))
 		lastHash = b.Get([]byte{'l'})
 
@@ -32,10 +32,10 @@ func (bc *BlockChain) AddBlock(data string) {
 
 	newBlock := NewBlock(data, lastHash)
 
-	bc.tip = newBlock.Hash
-	err = bc.db.Update(func(tx *bolt.Tx) error {
+	bc.Tip = newBlock.Hash
+	err = bc.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(dbBucket))
-		b.Put([]byte{'l'}, bc.tip)
+		b.Put([]byte{'l'}, bc.Tip)
 		b.Put(newBlock.Hash, newBlock.Serialize())
 
 		return nil
@@ -89,7 +89,7 @@ type Iterator struct {
 
 // NewIterator ...
 func (bc *BlockChain) NewIterator() *Iterator {
-	bci := Iterator{bc.tip, bc.db}
+	bci := Iterator{bc.Tip, bc.Db}
 
 	return &bci
 }
