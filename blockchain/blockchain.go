@@ -1,24 +1,116 @@
 package blockchain
 
+import (
+	"log"
+
+	"github.com/boltdb/bolt"
+)
+
+const dbName = "database/blochain.db"
+const dbBucket = "malluchain"
+
 // BlockChain data structure
 type BlockChain struct {
-	Blocks []*Block
-}
-
-// GenusisBlock the fisrt block in the Block chain
-func GenusisBlock() *Block {
-	return NewBlock("Genusis block", []byte{})
+	tip []byte
+	db  *bolt.DB
 }
 
 // AddBlock functions helps us to add a new data into the blockChain
 func (bc *BlockChain) AddBlock(data string) {
-	prevBlock := bc.Blocks[len(bc.Blocks)-1]
-	newBlock := NewBlock(data, prevBlock.Hash)
+	var lastHash []byte
 
-	bc.Blocks = append(bc.Blocks, newBlock)
+	err := bc.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(dbBucket))
+		lastHash = b.Get([]byte{'l'})
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	newBlock := NewBlock(data, lastHash)
+
+	bc.tip = newBlock.Hash
+	err = bc.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(dbBucket))
+		b.Put([]byte{'l'}, bc.tip)
+		b.Put(newBlock.Hash, newBlock.Serialize())
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
 }
 
 // NewBlockChain return a new blockchain for start with
 func NewBlockChain() *BlockChain {
-	return &BlockChain{[]*Block{GenusisBlock()}}
+	var tip []byte
+
+	db, err := bolt.Open(dbName, 0600, nil)
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(dbBucket))
+
+		if b == nil {
+			b, _ = tx.CreateBucket([]byte(dbBucket))
+			block := GenusisBlock()
+			err = b.Put(block.Hash, block.Serialize())
+			err = b.Put([]byte{'l'}, block.Hash)
+			tip = block.Hash
+		} else {
+			tip = b.Get([]byte{'l'})
+		}
+
+		if err != nil {
+			log.Panic(err)
+		}
+
+		return nil
+	})
+
+	return &BlockChain{tip, db}
+}
+
+// Iterator used to iterate
+// through the db
+type Iterator struct {
+	currentHash []byte
+	db          *bolt.DB
+}
+
+// NewIterator ...
+func (bc *BlockChain) NewIterator() *Iterator {
+	bci := Iterator{bc.tip, bc.db}
+
+	return &bci
+}
+
+// Next returns the next block in the chain
+func (i *Iterator) Next() *Block {
+	var block *Block
+
+	err := i.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(dbBucket))
+		encodedBlock := b.Get(i.currentHash)
+		block = Deserialize(encodedBlock)
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	i.currentHash = block.PrevHash
+
+	return block
 }
